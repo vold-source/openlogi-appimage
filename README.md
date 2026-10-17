@@ -75,6 +75,6 @@ To build locally (needs `curl` and `dpkg-deb`):
 ./build.sh v0.8.14   # → out/OpenLogi-0.8.14-x86_64.AppImage
 ```
 
-## License
+## License 
 
 The packaging in this repository is [MIT](LICENSE). OpenLogi itself is MIT / Apache-2.0, and its licence files are included in every AppImage.
