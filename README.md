@@ -11,6 +11,8 @@ Unofficial AppImage of [OpenLogi](https://github.com/AprilNEA/OpenLogi), the ope
 
 x86_64 only.
 
+> **Temporary by design.** This repo only exists because OpenLogi doesn't publish an AppImage itself. If it starts doing so, this repo will be archived with a pointer to the official builds, so switch to those when that happens.
+
 ## Install
 
 1. Download the latest `OpenLogi-*-x86_64.AppImage` from [Releases](https://github.com/vold-source/openlogi-appimage/releases/latest).
