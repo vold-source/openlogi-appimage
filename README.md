@@ -9,11 +9,11 @@ Made for immutable distros (Bazzite, Bluefin, Silverblue, …) where layering an
 ## Install
 
 1. Download the latest `OpenLogi-*-x86_64.AppImage` from [Releases](../../releases/latest).
-2. Open it with **Gear Lever** (preinstalled on Bazzite) and click *Unlock* and then *Move to app menu*. Gear Lever will also find updates automatically.
-3. Run the one-time setup in a terminal. Use the path Gear Lever moved it to (usually `~/AppImages/`):
+2. Install it with an AppImage manager that supports updates, e.g. **[AppManager](https://github.com/kem-a/AppManager)** (drag to install, moves it to `~/Applications/`) or **Gear Lever** (*Move to app menu*, moves it to `~/AppImages/`). Both pick up new versions automatically from the update info embedded in the AppImage.
+3. Run the one-time setup in a terminal, using the path your manager moved it to (check with `ls ~/Applications` or `ls ~/AppImages`):
 
    ```sh
-   ~/AppImages/openlogi.appimage setup
+   ~/Applications/OpenLogi.AppImage setup
    ```
 
    This does two things:
@@ -26,17 +26,17 @@ Made for immutable distros (Bazzite, Bluefin, Silverblue, …) where layering an
 
 Close Solaar (and turn off its autostart), so the two don't fight over the receiver.
 
-If you **move or rename** the AppImage, run `setup` again so the autostart points to the new location. Gear Lever updates keep the same path, so updating needs nothing.
+If you **move or rename** the AppImage, run `setup` again so the autostart points to the new location. Updates through AppManager or Gear Lever keep the same path, so updating needs nothing.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `openlogi.appimage` | open the OpenLogi window |
-| `openlogi.appimage setup` | one-time setup (device rules + agent autostart) |
-| `openlogi.appimage remove` | undo the setup |
-| `openlogi.appimage agent` | run the background agent by hand |
-| `openlogi.appimage cli …` | OpenLogi's command-line tool, e.g. `cli list` |
+| `OpenLogi.AppImage` | open the OpenLogi window |
+| `OpenLogi.AppImage setup` | one-time setup (device rules + agent autostart) |
+| `OpenLogi.AppImage remove` | undo the setup |
+| `OpenLogi.AppImage agent` | run the background agent by hand |
+| `OpenLogi.AppImage cli …` | OpenLogi's command-line tool, e.g. `cli list` |
 
 ## Notes
 
@@ -53,3 +53,5 @@ If you **move or rename** the AppImage, run `setup` again so the autostart point
 Needs `curl` and `dpkg-deb`.
 
 The packaging scripts in this repo are MIT licensed (see LICENSE). OpenLogi itself is MIT / Apache-2.0, and its licence files are included in the AppImage.
+
+If your AppImage manager offers a sandbox for apps, leave it off for OpenLogi: it needs direct access to your devices.
