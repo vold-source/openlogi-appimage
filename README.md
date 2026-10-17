@@ -9,7 +9,7 @@ Made for immutable distros (Bazzite, Bluefin, Silverblue, …) where layering an
 ## Install
 
 1. Download the latest `OpenLogi-*-x86_64.AppImage` from [Releases](../../releases/latest).
-2. Install it with an AppImage manager that supports updates, e.g. **[AppManager](https://github.com/kem-a/AppManager)** (drag to install, moves it to `~/Applications/`) or **Gear Lever** (*Move to app menu*, moves it to `~/AppImages/`). Both pick up new versions automatically from the update info embedded in the AppImage.
+2. Install it with **[AppManager](https://github.com/kem-a/AppManager)** (recommended): double-click the AppImage and drag it to install. AppManager moves it to `~/Applications/`, adds it to your app menu and installs new versions automatically from the update info embedded in the AppImage. [Gear Lever](https://github.com/mijorus/gearlever) works too (it uses `~/AppImages/`).
 3. Run the one-time setup in a terminal, using the path your manager moved it to (check with `ls ~/Applications` or `ls ~/AppImages`):
 
    ```sh
