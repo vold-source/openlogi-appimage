@@ -11,7 +11,7 @@ on:
         description: "Upstream tag to build (empty = latest)"
         required: false
       rebuild:
-        description: "Replace the AppImage if this version is already published (after packaging fixes)"
+        description: "Publish a packaging fix for a version that already has an AppImage (becomes e.g. 0.8.14.1)"
         type: boolean
         default: false
 
@@ -37,28 +37,45 @@ jobs:
           if [ -z "$tag" ]; then
             tag="$(gh api repos/AprilNEA/OpenLogi/releases/latest --jq .tag_name)"
           fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            if [ "${{ inputs.rebuild }}" = "true" ]; then
-              echo "Rebuilding $tag: removing the existing release."
-              gh release delete "$tag" --yes --cleanup-tag
-            else
-              echo "AppImage for $tag already published."
-              echo "skip=true" >> "$GITHUB_OUTPUT"
-            fi
+          # Releases here are named after the upstream tag (v0.8.14), plus a
+          # packaging revision for fixes (v0.8.14.1, v0.8.14.2, ...).
+          last="$(gh release list --limit 500 --json tagName --jq '.[].tagName' \
+            | awk -v t="$tag" '$0 == t { if (r < 0) r = 0 }
+                               index($0, t ".") == 1 { n = substr($0, length(t) + 2); if (n ~ /^[0-9]+$/ && n + 0 > r) r = n + 0 }
+                               BEGIN { r = -1 } END { print r }')"
+          if [ "$last" -ge 0 ] && [ "${{ inputs.rebuild }}" != "true" ]; then
+            echo "AppImage for $tag already published."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          rev=$(( last < 0 ? 0 : last + 1 ))
+          if [ "$rev" = 0 ]; then release="$tag"; else release="$tag.$rev"; fi
+          echo "Publishing $release"
+          {
+            echo "tag=$tag"
+            echo "rev=$rev"
+            echo "release=$release"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build
         if: steps.pick.outputs.skip != 'true'
-        run: UPDATE_REPO="${{ github.repository }}" ./build.sh "${{ steps.pick.outputs.tag }}"
+        run: UPDATE_REPO="${{ github.repository }}" ./build.sh "${{ steps.pick.outputs.tag }}" "${{ steps.pick.outputs.rev }}"
 
       - name: Publish release
         if: steps.pick.outputs.skip != 'true'
         run: |
           tag="${{ steps.pick.outputs.tag }}"
-          gh release create "$tag" out/* \
-            --title "OpenLogi ${tag#v} AppImage" \
-            --notes "Unmodified OpenLogi $tag ([upstream release notes](https://github.com/AprilNEA/OpenLogi/releases/tag/$tag)), packaged as an AppImage. First time? See the README for the one-time setup." \
+          release="${{ steps.pick.outputs.release }}"
+          if [ "$release" = "$tag" ]; then
+            title="OpenLogi ${tag#v} AppImage"
+            extra=""
+          else
+            title="OpenLogi ${tag#v} AppImage (packaging fix ${{ steps.pick.outputs.rev }})"
+            extra=" This is a packaging-only update: OpenLogi itself is unchanged; see the commit history for what changed."
+          fi
+          gh release create "$release" out/* \
+            --title "$title" \
+            --notes "Unmodified OpenLogi $tag ([upstream release notes](https://github.com/AprilNEA/OpenLogi/releases/tag/$tag)), packaged as an AppImage.$extra First time? See the README for the one-time setup." \
             --latest
 
       # GitHub pauses scheduled workflows in repos without commits for 60
@@ -66,9 +83,9 @@ jobs:
       - name: Record version
         if: steps.pick.outputs.skip != 'true'
         run: |
-          echo "${{ steps.pick.outputs.tag }}" > LATEST_BUILT
+          echo "${{ steps.pick.outputs.release }}" > LATEST_BUILT
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add LATEST_BUILT
-          git commit -m "Built ${{ steps.pick.outputs.tag }}" || git commit --allow-empty -m "Rebuilt ${{ steps.pick.outputs.tag }}"
+          git commit -m "Built ${{ steps.pick.outputs.release }}"
           git push

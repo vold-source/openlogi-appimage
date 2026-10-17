@@ -3,12 +3,18 @@
 # the binaries come unchanged from the upstream .deb.
 #
 #   ./build.sh v0.8.14            -> out/OpenLogi-0.8.14-x86_64.AppImage (+ .zsync)
+#   ./build.sh v0.8.14 1          -> out/OpenLogi-0.8.14.1-x86_64.AppImage
+#                                    (packaging fix 1 of the same OpenLogi version;
+#                                    the extra number lets AppImage managers see it
+#                                    as an update)
 #
 # Env: UPDATE_REPO (owner/repo the AppImage updates from; default from git remote)
 set -eu
 
-TAG="${1:?usage: build.sh <upstream tag, e.g. v0.8.14>}"
+TAG="${1:?usage: build.sh <upstream tag, e.g. v0.8.14> [packaging revision]}"
+REVISION="${2:-0}"
 VERSION="${TAG#v}"
+if [ "$REVISION" != 0 ]; then VERSION="$VERSION.$REVISION"; fi
 ARCH=x86_64
 DEB_ARCH=amd64
 UPSTREAM=AprilNEA/OpenLogi
