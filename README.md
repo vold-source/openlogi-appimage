@@ -26,8 +26,6 @@ Made for immutable distros (Bazzite, Bluefin, Silverblue, …) where layering an
 
 4. Open OpenLogi from your app menu.
 
-Close Solaar (and turn off its autostart), so the two don't fight over the receiver.
-
 If you **move or rename** the AppImage, run `setup` again so the autostart points to the new location. Updates through AppManager or Gear Lever keep the same path, so updating needs nothing.
 
 ## Commands
