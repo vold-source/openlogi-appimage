@@ -9,8 +9,17 @@ set -eu
 HERE="$(dirname "$(readlink -f "$0")")/../.."
 RULES_NAME=70-openlogi.rules
 RULES_DEST=/etc/udev/rules.d/$RULES_NAME
-UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+# Same path OpenLogi's agent uses for its own autostart unit. The agent writes
+# one there pointing inside the AppImage's temporary mount (useless after a
+# reboot); ours replaces it, and the agent leaves a unit it didn't write alone.
+UNIT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/systemd/user"
 UNIT="$UNIT_DIR/openlogi-agent.service"
+# Where earlier versions of this setup put the unit.
+OLD_UNIT="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/openlogi-agent.service"
+
+drop_old_unit() {
+  if grep -q 'Written by the OpenLogi AppImage setup' "$OLD_UNIT" 2>/dev/null; then rm -f "$OLD_UNIT"; fi
+}
 
 as_root() {
   if command -v pkexec >/dev/null 2>&1; then pkexec "$@"; else sudo "$@"; fi
@@ -36,6 +45,7 @@ install_all() {
   rm -f "$tmp"
 
   echo "2/2  Starting the OpenLogi agent on login (from $APPIMAGE)"
+  drop_old_unit
   mkdir -p "$UNIT_DIR"
   cat > "$UNIT" <<EOF
 # Written by the OpenLogi AppImage setup. Re-run "setup" if you move the AppImage.
@@ -65,10 +75,7 @@ remove_all() {
   echo "1/2  Stopping and removing the agent autostart"
   systemctl --user disable --now openlogi-agent.service 2>/dev/null || true
   rm -f "$UNIT"
-  # The agent also writes its own copy here, pointing inside the AppImage's
-  # temporary mount. It's shadowed by ours while set up; clean it up too.
-  generated="${XDG_DATA_HOME:-$HOME/.local/share}/systemd/user/openlogi-agent.service"
-  if grep -q '/tmp/.mount_' "$generated" 2>/dev/null; then rm -f "$generated"; fi
+  drop_old_unit
   systemctl --user daemon-reload || true
 
   if [ -e "$RULES_DEST" ]; then

@@ -18,7 +18,7 @@ Made for immutable distros (Bazzite, Bluefin, Silverblue, …) where layering an
 
    This does two things:
    - copies OpenLogi's device rules to `/etc/udev/rules.d/70-openlogi.rules`, so it can talk to your receiver and mouse (it asks for your password once);
-   - adds a small autostart service in `~/.config/systemd/user/`, so OpenLogi's background agent runs every time you log in.
+   - adds a small autostart service in `~/.local/share/systemd/user/`, so OpenLogi's background agent runs every time you log in.
 
    Neither one layers packages or touches the read-only system image.
 
