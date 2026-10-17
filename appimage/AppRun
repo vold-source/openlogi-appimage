@@ -1,0 +1,17 @@
+#!/bin/sh
+# Entry point of the OpenLogi AppImage.
+#   OpenLogi.AppImage            open the OpenLogi window
+#   OpenLogi.AppImage agent      run the background agent (used by the autostart service)
+#   OpenLogi.AppImage cli ...    run the openlogi command-line tool
+#   OpenLogi.AppImage setup      one-time setup: device rules + agent autostart
+#   OpenLogi.AppImage remove     undo the one-time setup
+HERE="$(dirname "$(readlink -f "$0")")"
+export PATH="$HERE/usr/bin:$PATH"
+
+case "$1" in
+  agent)  shift; exec "$HERE/usr/bin/openlogi-agent" "$@" ;;
+  cli)    shift; exec "$HERE/usr/bin/openlogi" "$@" ;;
+  setup)  shift; exec "$HERE/usr/bin/openlogi-appimage-setup" install "$@" ;;
+  remove) shift; exec "$HERE/usr/bin/openlogi-appimage-setup" remove "$@" ;;
+  *)      exec "$HERE/usr/bin/openlogi-desktop" "$@" ;;
+esac

@@ -1,0 +1,65 @@
+name: Build AppImage
+
+# Checks OpenLogi's releases once a day and publishes an AppImage for any
+# version that doesn't have one yet. Can also be started by hand.
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Upstream tag to build (empty = latest)"
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick version
+        id: pick
+        run: |
+          tag="${{ inputs.tag }}"
+          if [ -z "$tag" ]; then
+            tag="$(gh api repos/AprilNEA/OpenLogi/releases/latest --jq .tag_name)"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "AppImage for $tag already published."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        if: steps.pick.outputs.skip != 'true'
+        run: UPDATE_REPO="${{ github.repository }}" ./build.sh "${{ steps.pick.outputs.tag }}"
+
+      - name: Publish release
+        if: steps.pick.outputs.skip != 'true'
+        run: |
+          tag="${{ steps.pick.outputs.tag }}"
+          gh release create "$tag" out/* \
+            --title "OpenLogi ${tag#v} AppImage" \
+            --notes "Unmodified OpenLogi $tag ([upstream release notes](https://github.com/AprilNEA/OpenLogi/releases/tag/$tag)), packaged as an AppImage. First time? See the README for the one-time setup." \
+            --latest
+
+      # GitHub pauses scheduled workflows in repos without commits for 60
+      # days; recording each built version keeps this one active.
+      - name: Record version
+        if: steps.pick.outputs.skip != 'true'
+        run: |
+          echo "${{ steps.pick.outputs.tag }}" > LATEST_BUILT
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add LATEST_BUILT
+          git commit -m "Built ${{ steps.pick.outputs.tag }}"
+          git push

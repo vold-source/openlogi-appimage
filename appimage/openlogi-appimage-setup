@@ -1,0 +1,85 @@
+#!/bin/sh
+# One-time system integration for the OpenLogi AppImage.
+#   install: copy OpenLogi's device rules to /etc/udev/rules.d (asks for your
+#            password once) and start the background agent on every login.
+#   remove:  undo both.
+# Nothing here layers packages or touches the read-only system image.
+set -eu
+
+HERE="$(dirname "$(readlink -f "$0")")/../.."
+RULES_NAME=70-openlogi.rules
+RULES_DEST=/etc/udev/rules.d/$RULES_NAME
+UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+UNIT="$UNIT_DIR/openlogi-agent.service"
+
+as_root() {
+  if command -v pkexec >/dev/null 2>&1; then pkexec "$@"; else sudo "$@"; fi
+}
+
+install_all() {
+  if [ -z "${APPIMAGE:-}" ]; then
+    echo "Run this through the AppImage: ./OpenLogi-*.AppImage setup" >&2
+    exit 1
+  fi
+
+  echo "1/2  Installing device rules to $RULES_DEST (you may be asked for your password)"
+  # root can't read inside the AppImage's mount, so stage the file first.
+  tmp="$(mktemp)"
+  cp "$HERE/usr/lib/openlogi/$RULES_NAME" "$tmp"
+  chmod 644 "$tmp"
+  as_root sh -c "install -m 644 '$tmp' '$RULES_DEST' \
+    && udevadm control --reload-rules \
+    && udevadm trigger --subsystem-match=hidraw \
+    && udevadm trigger --subsystem-match=input \
+    && (udevadm trigger --subsystem-match=misc --attr-match=name=uinput || true) \
+    && (udevadm settle || true)"
+  rm -f "$tmp"
+
+  echo "2/2  Starting the OpenLogi agent on login (from $APPIMAGE)"
+  mkdir -p "$UNIT_DIR"
+  cat > "$UNIT" <<EOF
+# Written by the OpenLogi AppImage setup. Re-run "setup" if you move the AppImage.
+[Unit]
+Description=OpenLogi background agent (AppImage)
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart="$APPIMAGE" agent
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
+EOF
+  systemctl --user daemon-reload
+  systemctl --user enable openlogi-agent.service
+  systemctl --user restart openlogi-agent.service
+
+  echo
+  echo "Done. The agent is running and will start on every login."
+  echo "If you move or rename the AppImage, run setup again."
+}
+
+remove_all() {
+  echo "1/2  Stopping and removing the agent autostart"
+  systemctl --user disable --now openlogi-agent.service 2>/dev/null || true
+  rm -f "$UNIT"
+  # The agent also writes its own copy here, pointing inside the AppImage's
+  # temporary mount. It's shadowed by ours while set up; clean it up too.
+  generated="${XDG_DATA_HOME:-$HOME/.local/share}/systemd/user/openlogi-agent.service"
+  if grep -q '/tmp/.mount_' "$generated" 2>/dev/null; then rm -f "$generated"; fi
+  systemctl --user daemon-reload || true
+
+  if [ -e "$RULES_DEST" ]; then
+    echo "2/2  Removing $RULES_DEST (you may be asked for your password)"
+    as_root sh -c "rm -f '$RULES_DEST' && udevadm control --reload-rules && udevadm trigger --subsystem-match=hidraw"
+  fi
+  echo "Done."
+}
+
+case "${1:-install}" in
+  install) install_all ;;
+  remove)  remove_all ;;
+  *) echo "usage: setup | remove" >&2; exit 2 ;;
+esac
