@@ -52,4 +52,4 @@ If you **move or rename** the AppImage, run `setup` again so the autostart point
 
 Needs `curl` and `dpkg-deb`.
 
-OpenLogi is licensed MIT / Apache-2.0. The licence files are included in the AppImage.
+The packaging scripts in this repo are MIT licensed (see LICENSE). OpenLogi itself is MIT / Apache-2.0, and its licence files are included in the AppImage.
