@@ -9,12 +9,14 @@ Made for immutable distros (Bazzite, Bluefin, Silverblue, …) where layering an
 ## Install
 
 1. Download the latest `OpenLogi-*-x86_64.AppImage` from [Releases](../../releases/latest).
-2. Install it with **[AppManager](https://github.com/kem-a/AppManager)** (recommended): double-click the AppImage and drag it to install. AppManager moves it to `~/Applications/`, adds it to your app menu and installs new versions automatically from the update info embedded in the AppImage. [Gear Lever](https://github.com/mijorus/gearlever) works too (it uses `~/AppImages/`).
-3. Run the one-time setup in a terminal, using the path your manager moved it to (check with `ls ~/Applications` or `ls ~/AppImages`):
+2. Install it with **[AppManager](https://github.com/kem-a/AppManager)** (recommended): double-click the AppImage and drag it to install. AppManager moves it to `~/Applications/OpenLogi`, adds it to your app menu and installs new versions automatically from the update info embedded in the AppImage. [Gear Lever](https://github.com/mijorus/gearlever) works too (it uses `~/AppImages/`).
+3. Run the one-time setup in a terminal. With AppManager:
 
    ```sh
-   ~/Applications/OpenLogi.AppImage setup
+   ~/Applications/OpenLogi setup
    ```
+
+   With Gear Lever or a plain download, use the path of the AppImage file instead (`ls ~/AppImages` shows Gear Lever's).
 
    This does two things:
    - copies OpenLogi's device rules to `/etc/udev/rules.d/70-openlogi.rules`, so it can talk to your receiver and mouse (it asks for your password once);
@@ -32,11 +34,11 @@ If you **move or rename** the AppImage, run `setup` again so the autostart point
 
 | Command | What it does |
 |---|---|
-| `OpenLogi.AppImage` | open the OpenLogi window |
-| `OpenLogi.AppImage setup` | one-time setup (device rules + agent autostart) |
-| `OpenLogi.AppImage remove` | undo the setup |
-| `OpenLogi.AppImage agent` | run the background agent by hand |
-| `OpenLogi.AppImage cli …` | OpenLogi's command-line tool, e.g. `cli list` |
+| `~/Applications/OpenLogi` | open the OpenLogi window |
+| `~/Applications/OpenLogi setup` | one-time setup (device rules + agent autostart) |
+| `~/Applications/OpenLogi remove` | undo the setup |
+| `~/Applications/OpenLogi agent` | run the background agent by hand |
+| `~/Applications/OpenLogi cli …` | OpenLogi's command-line tool, e.g. `cli list` |
 
 ## Notes
 
