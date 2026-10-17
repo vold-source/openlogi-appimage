@@ -1,57 +1,78 @@
 # OpenLogi AppImage
 
-Unofficial AppImage builds of [OpenLogi](https://github.com/AprilNEA/OpenLogi), the open-source Logitech Options+ alternative.
+[![Latest release](https://img.shields.io/github/v/release/vold-source/openlogi-appimage?label=AppImage)](https://github.com/vold-source/openlogi-appimage/releases/latest)
+[![Build](https://github.com/vold-source/openlogi-appimage/actions/workflows/build.yml/badge.svg)](https://github.com/vold-source/openlogi-appimage/actions/workflows/build.yml)
 
-The binaries are taken **unchanged** from each official OpenLogi release (`.deb`) and wrapped into an AppImage. Nothing is recompiled or patched. A GitHub Action checks for new OpenLogi releases daily and publishes a matching AppImage here.
+Unofficial AppImage of [OpenLogi](https://github.com/AprilNEA/OpenLogi), the open-source alternative to Logitech Options+.
 
-Made for immutable distros (Bazzite, Bluefin, Silverblue, …) where layering an `.rpm` isn't ideal. x86_64 only.
+- **Unchanged:** the program files come straight from each official OpenLogi release. Nothing is recompiled or patched.
+- **Always current:** a daily check publishes every new OpenLogi version here, and your AppImage manager picks it up.
+- **Made for immutable distros** such as Bazzite, Bluefin and Silverblue, where layering packages isn't ideal.
+
+x86_64 only.
 
 ## Install
 
-1. Download the latest `OpenLogi-*-x86_64.AppImage` from [Releases](../../releases/latest).
-2. Install it with **[AppManager](https://github.com/kem-a/AppManager)** (recommended): double-click the AppImage and drag it to install. AppManager moves it to `~/Applications/OpenLogi`, adds it to your app menu and installs new versions automatically from the update info embedded in the AppImage. [Gear Lever](https://github.com/mijorus/gearlever) works too (it uses `~/AppImages/`).
-3. Run the one-time setup in a terminal. With AppManager:
+1. Download the latest `OpenLogi-*-x86_64.AppImage` from [Releases](https://github.com/vold-source/openlogi-appimage/releases/latest).
+2. Install it with **[AppManager](https://github.com/kem-a/AppManager)** (recommended): double-click the AppImage and drag it to install. It ends up at `~/Applications/OpenLogi` and appears in your app menu.
+3. Run the one-time setup in a terminal:
 
    ```sh
    ~/Applications/OpenLogi setup
    ```
 
-   With Gear Lever or a plain download, use the path of the AppImage file instead (`ls ~/AppImages` shows Gear Lever's).
-
-   This does two things:
-   - copies OpenLogi's device rules to `/etc/udev/rules.d/70-openlogi.rules`, so it can talk to your receiver and mouse (it asks for your password once);
-   - adds a small autostart service in `~/.local/share/systemd/user/`, so OpenLogi's background agent runs every time you log in.
-
-   Neither one layers packages or touches the read-only system image.
-
 4. Open OpenLogi from your app menu.
 
-If you **move or rename** the AppImage, run `setup` again so the autostart points to the new location. Updates through AppManager or Gear Lever keep the same path, so updating needs nothing.
+[Gear Lever](https://github.com/mijorus/gearlever) works as well; use the path it shows (usually in `~/AppImages/`) instead of `~/Applications/OpenLogi`.
+
+### What setup does
+
+- Copies OpenLogi's device rules to `/etc/udev/rules.d/70-openlogi.rules`, so OpenLogi can talk to your receiver and read and remap mouse buttons. It asks for your password once.
+- Adds an autostart service in `~/.local/share/systemd/user/`, so OpenLogi's background agent runs whenever you log in.
+
+Neither one layers packages or changes the read-only system image. `~/Applications/OpenLogi remove` undoes both.
+
+Run `setup` again if you move or rename the AppImage. Updates keep the same path, so they need nothing.
+
+## Updates
+
+AppManager (or Gear Lever) checks this repository and installs new versions for you. The background agent switches to the new version the next time you log in.
+
+OpenLogi's own **Settings → Updates** page doesn't apply to the AppImage:
+
+- **Check for Updates** fails with *"no release asset matched the current platform"*, because OpenLogi doesn't publish a self-updating Linux build. Ignore it; your AppImage manager handles updates.
+- **Installation source: Not identified** is expected. OpenLogi only recognises its own deb, rpm, Arch and Nix packages.
+- **Update source** links to the upstream OpenLogi release that's inside this AppImage, which is correct.
+
+Versions match OpenLogi's (e.g. `0.8.14`). A fourth number (e.g. `0.8.14.1`) means a packaging fix with the same OpenLogi inside.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `~/Applications/OpenLogi` | open the OpenLogi window |
-| `~/Applications/OpenLogi setup` | one-time setup (device rules + agent autostart) |
-| `~/Applications/OpenLogi remove` | undo the setup |
-| `~/Applications/OpenLogi agent` | run the background agent by hand |
+| `~/Applications/OpenLogi` | Open the OpenLogi window |
+| `~/Applications/OpenLogi setup` | One-time setup (device rules + agent autostart) |
+| `~/Applications/OpenLogi remove` | Undo the setup |
+| `~/Applications/OpenLogi agent` | Run the background agent by hand |
 | `~/Applications/OpenLogi cli …` | OpenLogi's command-line tool, e.g. `cli list` |
 
-## Notes
+## Troubleshooting
 
-- The window needs `libxkbcommon`, `libxkbcommon-x11` and `libxcb`, which every normal desktop already has.
-- After an update, the agent keeps running the old version until you log out and back in (or run `systemctl --user restart openlogi-agent`).
-- Bugs in OpenLogi itself belong [upstream](https://github.com/AprilNEA/OpenLogi/issues). Packaging problems belong here.
+- **Is the agent running?** `systemctl --user status openlogi-agent` should say *active (running)*.
+- **Sandbox:** if your AppImage manager offers to sandbox apps, leave it off for OpenLogi, which needs direct access to your devices.
+- **Missing libraries:** the window needs `libxkbcommon`, `libxkbcommon-x11` and `libxcb`, which every normal desktop already has.
+- Problems with OpenLogi itself belong [upstream](https://github.com/AprilNEA/OpenLogi/issues), and packaging problems belong [here](https://github.com/vold-source/openlogi-appimage/issues).
 
-## Building locally
+## How it's built
+
+[`build.sh`](build.sh) downloads the official `.deb` for a release, unpacks it, adds a small launcher ([`appimage/AppRun`](appimage/AppRun)) and the setup script ([`appimage/openlogi-appimage-setup`](appimage/openlogi-appimage-setup)), and packs everything with [appimagetool](https://github.com/AppImage/appimagetool). The [workflow](.github/workflows/build.yml) runs it daily and publishes the result.
+
+To build locally (needs `curl` and `dpkg-deb`):
 
 ```sh
 ./build.sh v0.8.14   # → out/OpenLogi-0.8.14-x86_64.AppImage
 ```
 
-Needs `curl` and `dpkg-deb`.
+## License
 
-The packaging scripts in this repo are MIT licensed (see LICENSE). OpenLogi itself is MIT / Apache-2.0, and its licence files are included in the AppImage.
-
-If your AppImage manager offers a sandbox for apps, leave it off for OpenLogi: it needs direct access to your devices.
+The packaging in this repository is [MIT](LICENSE). OpenLogi itself is MIT / Apache-2.0, and its licence files are included in every AppImage.
