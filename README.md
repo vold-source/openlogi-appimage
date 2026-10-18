@@ -67,7 +67,14 @@ Versions match OpenLogi's (e.g. `0.8.14`). A fourth number (e.g. `0.8.14.1`) mea
 
 ## How it's built
 
-[`build.sh`](build.sh) downloads the official `.deb` for a release, unpacks it, adds a small launcher ([`appimage/AppRun`](appimage/AppRun)) and the setup script ([`appimage/openlogi-appimage-setup`](appimage/openlogi-appimage-setup)), and packs everything with [appimagetool](https://github.com/AppImage/appimagetool). The [workflow](.github/workflows/build.yml) runs it daily and publishes the result.
+| File | What it does | Origin |
+|---|---|---|
+| [`build.sh`](build.sh) | Downloads OpenLogi's official `.deb`, unpacks it, adds the two scripts below, and packs it all into an AppImage with [appimagetool](https://github.com/AppImage/appimagetool). | Written for this repo |
+| [`appimage/AppRun`](appimage/AppRun) | The AppImage's front door: decides whether to open the window, run the agent, run the command-line tool, or run setup/remove. | Written for this repo |
+| [`appimage/openlogi-appimage-setup`](appimage/openlogi-appimage-setup) | The one-time `setup` and `remove`. | Written for this repo; the rules file and `udevadm` commands are OpenLogi's own, and the service mirrors OpenLogi's |
+| [`.github/workflows/build.yml`](.github/workflows/build.yml) | Runs daily on GitHub, builds new OpenLogi versions and publishes them as Releases. | Written for this repo |
+
+Every file is commented in plain language, so you can read it top to bottom.
 
 To build locally (needs `curl` and `dpkg-deb`):
 

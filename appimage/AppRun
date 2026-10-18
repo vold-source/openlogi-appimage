@@ -1,17 +1,40 @@
 #!/bin/sh
-# Entry point of the OpenLogi AppImage.
-#   OpenLogi.AppImage            open the OpenLogi window
-#   OpenLogi.AppImage agent      run the background agent (used by the autostart service)
-#   OpenLogi.AppImage cli ...    run the openlogi command-line tool
-#   OpenLogi.AppImage setup      one-time setup: device rules + agent autostart
-#   OpenLogi.AppImage remove     undo the one-time setup
+# =============================================================================
+# AppRun: the "front door" of the OpenLogi AppImage
+# =============================================================================
+#
+# When you start the AppImage (by double-clicking it, from the app menu, or in
+# a terminal), the AppImage first unpacks itself into a temporary folder and
+# then runs THIS script. Its only job is to look at the first word you typed
+# after the AppImage's name and start the matching OpenLogi program:
+#
+#   OpenLogi             -> open the OpenLogi window (openlogi-desktop)
+#   OpenLogi agent       -> run the background agent (openlogi-agent); this is
+#                           what the autostart service uses on every login
+#   OpenLogi cli ...     -> OpenLogi's command-line tool (openlogi), e.g. "cli list"
+#   OpenLogi setup       -> one-time setup (see openlogi-appimage-setup)
+#   OpenLogi remove      -> undo that setup
+#
+# All OpenLogi programs started here are the original, unmodified ones from
+# OpenLogi's official release. This script was written for this repository.
+# =============================================================================
+
+# HERE = the temporary folder the AppImage was unpacked into. readlink -f turns
+# the path into an absolute one, dirname removes the file name from it.
 HERE="$(dirname "$(readlink -f "$0")")"
+
+# Let the OpenLogi programs find each other. For example, the agent starts the
+# "openlogi-overlay" helper, and looks for it next to itself or on the PATH.
 export PATH="$HERE/usr/bin:$PATH"
 
+# "$1" is the first word after the AppImage name ("agent", "setup", ...).
+# "shift" removes that word, so "$@" passes only the remaining words on.
+# "exec" replaces this script with the program, instead of running it on the side.
 case "$1" in
   agent)  shift; exec "$HERE/usr/bin/openlogi-agent" "$@" ;;
   cli)    shift; exec "$HERE/usr/bin/openlogi" "$@" ;;
   setup)  shift; exec "$HERE/usr/bin/openlogi-appimage-setup" install "$@" ;;
   remove) shift; exec "$HERE/usr/bin/openlogi-appimage-setup" remove "$@" ;;
+  # Anything else (including no word at all): open the normal window.
   *)      exec "$HERE/usr/bin/openlogi-desktop" "$@" ;;
 esac

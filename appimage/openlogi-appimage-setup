@@ -1,41 +1,102 @@
 #!/bin/sh
-# One-time system integration for the OpenLogi AppImage.
-#   install: copy OpenLogi's device rules to /etc/udev/rules.d (asks for your
-#            password once) and start the background agent on every login.
-#   remove:  undo both.
-# Nothing here layers packages or touches the read-only system image.
+# =============================================================================
+# openlogi-appimage-setup: the one-time setup behind "OpenLogi setup" / "remove"
+# =============================================================================
+#
+# Why this exists
+# ---------------
+# When OpenLogi is installed as a normal package (.deb/.rpm), the system's
+# package installer does two extra things automatically. An AppImage has no
+# installer, so this script does them instead:
+#
+#   1. DEVICE RULES. Copies OpenLogi's own rules file (70-openlogi.rules, taken
+#      unchanged from the official package) to /etc/udev/rules.d/. These rules
+#      allow your user account to talk to Logitech receivers, read the mouse's
+#      button presses, and send remapped actions. /etc is the part of an
+#      immutable system (Bazzite, Silverblue, ...) that is meant for local
+#      settings, so this is not layering and it survives system updates.
+#      Writing to /etc needs your password once.
+#
+#   2. AUTOSTART. Writes a small systemd "user service" so OpenLogi's
+#      background agent starts every time you log in. It has the same settings
+#      as the service file OpenLogi ships in its packages; only the start
+#      command differs: it starts your AppImage instead of /usr/bin/openlogi-agent.
+#
+# "remove" undoes both. Nothing here installs packages or changes the
+# read-only system image.
+#
+# Origin: this script was written for this repository. The rules file and the
+# udevadm commands below come from OpenLogi's own packaging.
+# =============================================================================
+
+# Stop at the first error (-e) and treat unset variables as errors (-u), so a
+# half-finished setup never silently looks like it worked.
 set -eu
 
+# Where the AppImage was unpacked. This script sits in usr/bin/, so "../.."
+# goes back up to the top of the unpacked AppImage.
 HERE="$(dirname "$(readlink -f "$0")")/../.."
+
+# --- Device rules ------------------------------------------------------------
 RULES_NAME=70-openlogi.rules
 RULES_DEST=/etc/udev/rules.d/$RULES_NAME
-# Same path OpenLogi's agent uses for its own autostart unit. The agent writes
-# one there pointing inside the AppImage's temporary mount (useless after a
-# reboot); ours replaces it, and the agent leaves a unit it didn't write alone.
+
+# --- Autostart service -------------------------------------------------------
+# We put the service file where OpenLogi's agent looks for its own one
+# (~/.local/share/systemd/user/). Background: when the agent starts, it writes
+# its own autostart file there. Inside an AppImage that file points into the
+# temporary unpack folder, which disappears on reboot, so it would be useless.
+# Ours replaces it, and the agent leaves alone a file it did not write itself.
 UNIT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/systemd/user"
 UNIT="$UNIT_DIR/openlogi-agent.service"
-# Where earlier versions of this setup put the unit.
+
+# The first version of this setup put the file in ~/.config/systemd/user/
+# instead. If one of ours is still there, it would win over the new one, so we
+# clean it up. Only a file containing our own marker line is ever deleted.
 OLD_UNIT="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/openlogi-agent.service"
 
 drop_old_unit() {
-  if grep -q 'Written by the OpenLogi AppImage setup' "$OLD_UNIT" 2>/dev/null; then rm -f "$OLD_UNIT"; fi
+  if grep -q 'Written by the OpenLogi AppImage setup' "$OLD_UNIT" 2>/dev/null; then
+    rm -f "$OLD_UNIT"
+  fi
 }
 
+# Run a command with administrator rights. pkexec shows a graphical password
+# prompt; sudo (asks in the terminal) is the fallback if pkexec isn't there.
 as_root() {
   if command -v pkexec >/dev/null 2>&1; then pkexec "$@"; else sudo "$@"; fi
 }
 
+# =============================================================================
+# setup
+# =============================================================================
 install_all() {
+  # $APPIMAGE is set by the AppImage itself and holds the path of the
+  # .AppImage file (e.g. ~/Applications/OpenLogi). The autostart service needs
+  # that path, so this only works when started through the AppImage.
   if [ -z "${APPIMAGE:-}" ]; then
     echo "Run this through the AppImage: ./OpenLogi-*.AppImage setup" >&2
     exit 1
   fi
 
+  # --- Step 1: device rules --------------------------------------------------
   echo "1/2  Installing device rules to $RULES_DEST (you may be asked for your password)"
-  # root can't read inside the AppImage's mount, so stage the file first.
+
+  # The administrator account can't look inside the AppImage's temporary
+  # folder (it belongs to your user only), so first copy the rules file to a
+  # normal temporary file that it can read.
   tmp="$(mktemp)"
   cp "$HERE/usr/lib/openlogi/$RULES_NAME" "$tmp"
   chmod 644 "$tmp"
+
+  # Everything that needs administrator rights runs in one go, so you're asked
+  # for your password only once:
+  #   install ...         copy the rules file to /etc/udev/rules.d/
+  #   udevadm control     tell the system to re-read its device rules
+  #   udevadm trigger     re-apply them to devices that are already plugged in,
+  #                       so no reboot or re-plugging is needed
+  #   udevadm settle      wait until that's finished
+  # These udevadm commands are the same ones OpenLogi's own package runs.
   as_root sh -c "install -m 644 '$tmp' '$RULES_DEST' \
     && udevadm control --reload-rules \
     && udevadm trigger --subsystem-match=hidraw \
@@ -44,9 +105,18 @@ install_all() {
     && (udevadm settle || true)"
   rm -f "$tmp"
 
+  # --- Step 2: autostart service --------------------------------------------
   echo "2/2  Starting the OpenLogi agent on login (from $APPIMAGE)"
   drop_old_unit
   mkdir -p "$UNIT_DIR"
+
+  # Write the service file. Apart from the first comment line, the Description
+  # and the ExecStart line, it matches the openlogi-agent.service that
+  # OpenLogi ships:
+  #   After=graphical-session.target   start once your desktop is up
+  #   ExecStart=... agent              run the agent from your AppImage
+  #   Restart=on-failure, RestartSec=5 if the agent crashes, restart it after 5 s
+  #   WantedBy=graphical-session.target  start it with every desktop login
   cat > "$UNIT" <<EOF
 # Written by the OpenLogi AppImage setup. Re-run "setup" if you move the AppImage.
 [Unit]
@@ -62,6 +132,11 @@ RestartSec=5
 [Install]
 WantedBy=graphical-session.target
 EOF
+
+  # daemon-reload: let systemd notice the new file.
+  # enable:        start it automatically on every login (this creates the
+  #                link in ~/.config/systemd/user/graphical-session.target.wants/).
+  # restart:       start it right now as well, replacing any agent already running.
   systemctl --user daemon-reload
   systemctl --user enable openlogi-agent.service
   systemctl --user restart openlogi-agent.service
@@ -71,13 +146,19 @@ EOF
   echo "If you move or rename the AppImage, run setup again."
 }
 
+# =============================================================================
+# remove: undo everything setup did
+# =============================================================================
 remove_all() {
   echo "1/2  Stopping and removing the agent autostart"
+  # Stop the agent and switch off autostart. "|| true" means: if it was
+  # already off, that's fine, carry on.
   systemctl --user disable --now openlogi-agent.service 2>/dev/null || true
   rm -f "$UNIT"
   drop_old_unit
   systemctl --user daemon-reload || true
 
+  # Remove the device rules again, if they're there (needs your password).
   if [ -e "$RULES_DEST" ]; then
     echo "2/2  Removing $RULES_DEST (you may be asked for your password)"
     as_root sh -c "rm -f '$RULES_DEST' && udevadm control --reload-rules && udevadm trigger --subsystem-match=hidraw"
@@ -85,6 +166,9 @@ remove_all() {
   echo "Done."
 }
 
+# =============================================================================
+# Pick what to do. AppRun passes "install" for "setup" and "remove" for "remove".
+# =============================================================================
 case "${1:-install}" in
   install) install_all ;;
   remove)  remove_all ;;

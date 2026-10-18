@@ -1,10 +1,27 @@
+# =============================================================================
+# Build AppImage: the automatic part of this repository
+# =============================================================================
+#
+# This is a GitHub Actions "workflow": instructions GitHub runs for us on its
+# own machines. Once a day it:
+#   1. asks OpenLogi's GitHub which version is the newest,
+#   2. stops if this repo already has an AppImage for that version,
+#   3. otherwise runs build.sh to make one,
+#   4. publishes it as a new Release on this repo (where AppManager finds it),
+#   5. records the version in .github/LATEST_BUILT (see the last step for why).
+#
+# It can also be started by hand: repo page -> Actions -> Build AppImage ->
+# "Run workflow". The two optional fields there are described under "inputs".
+# =============================================================================
+
 name: Build AppImage
 
-# Checks OpenLogi's releases once a day and publishes an AppImage for any
-# version that doesn't have one yet. Can also be started by hand.
 on:
+  # Every day at 05:17 UTC (an odd minute, to avoid GitHub's busiest times).
   schedule:
     - cron: "17 5 * * *"
+
+  # Manual start, with two optional fields.
   workflow_dispatch:
     inputs:
       tag:
@@ -15,52 +32,81 @@ on:
         type: boolean
         default: false
 
+# Allows this workflow to create releases and push the one-line record file.
+# It gets no other access.
 permissions:
   contents: write
 
+# Never run two builds at the same time; a second one waits for the first.
 concurrency:
   group: build
   cancel-in-progress: false
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest          # a fresh Ubuntu machine, thrown away afterwards
     env:
-      GH_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ github.token }} # lets the "gh" commands below use GitHub
     steps:
+      # Get this repository's files (build.sh, the scripts) onto the machine.
       - uses: actions/checkout@v4
 
+      # -----------------------------------------------------------------------
+      # Decide which version to build, or whether to build at all.
+      # -----------------------------------------------------------------------
       - name: Pick version
         id: pick
         run: |
+          # Which OpenLogi version? The one typed in by hand, or else the
+          # newest release on OpenLogi's GitHub (e.g. "v0.8.14").
           tag="${{ inputs.tag }}"
           if [ -z "$tag" ]; then
             tag="$(gh api repos/AprilNEA/OpenLogi/releases/latest --jq .tag_name)"
           fi
-          # Releases here are named after the upstream tag (v0.8.14), plus a
-          # packaging revision for fixes (v0.8.14.1, v0.8.14.2, ...).
+
+          # Releases here are named after OpenLogi's version (v0.8.14), plus a
+          # fourth number for packaging fixes (v0.8.14.1, v0.8.14.2, ...).
+          # Look through this repo's releases and find the highest fix number
+          # for this version:
+          #   -1 = no AppImage for this version yet
+          #    0 = only the first build (v0.8.14) exists
+          #    n = fixes up to v0.8.14.n exist
           last="$(gh release list --limit 500 --json tagName --jq '.[].tagName' \
             | awk -v t="$tag" '$0 == t { if (r < 0) r = 0 }
                                index($0, t ".") == 1 { n = substr($0, length(t) + 2); if (n ~ /^[0-9]+$/ && n + 0 > r) r = n + 0 }
                                BEGIN { r = -1 } END { print r }')"
+
+          # Already built and no packaging fix requested: nothing to do today.
           if [ "$last" -ge 0 ] && [ "${{ inputs.rebuild }}" != "true" ]; then
             echo "AppImage for $tag already published."
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
+          # Otherwise: the first build gets the plain version, a fix gets the
+          # next number up.
           rev=$(( last < 0 ? 0 : last + 1 ))
           if [ "$rev" = 0 ]; then release="$tag"; else release="$tag.$rev"; fi
           echo "Publishing $release"
+
+          # Hand the results to the next steps.
           {
             echo "tag=$tag"
             echo "rev=$rev"
             echo "release=$release"
           } >> "$GITHUB_OUTPUT"
 
+      # -----------------------------------------------------------------------
+      # Make the AppImage (see build.sh for the details).
+      # -----------------------------------------------------------------------
       - name: Build
         if: steps.pick.outputs.skip != 'true'
         run: UPDATE_REPO="${{ github.repository }}" ./build.sh "${{ steps.pick.outputs.tag }}" "${{ steps.pick.outputs.rev }}"
 
+      # -----------------------------------------------------------------------
+      # Publish it as a GitHub Release, marked "Latest", so AppImage managers
+      # see it. Both files are attached: the .AppImage and its .zsync file.
+      # -----------------------------------------------------------------------
       - name: Publish release
         if: steps.pick.outputs.skip != 'true'
         run: |
@@ -78,8 +124,11 @@ jobs:
             --notes "Unmodified OpenLogi $tag ([upstream release notes](https://github.com/AprilNEA/OpenLogi/releases/tag/$tag)), packaged as an AppImage.$extra First time? See the README for the one-time setup." \
             --latest
 
-      # GitHub pauses scheduled workflows in repos without commits for 60
-      # days; recording each built version keeps this one active.
+      # -----------------------------------------------------------------------
+      # GitHub switches off daily schedules in repos that get no new commits
+      # for 60 days. Writing the built version into a small file and saving it
+      # as a commit keeps the repo "active" every time OpenLogi releases.
+      # -----------------------------------------------------------------------
       - name: Record version
         if: steps.pick.outputs.skip != 'true'
         run: |
