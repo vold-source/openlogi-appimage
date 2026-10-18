@@ -23,7 +23,9 @@
 #      command differs: it starts your AppImage instead of /usr/bin/openlogi-agent.
 #
 # "remove" undoes both. Nothing here installs packages or changes the
-# read-only system image.
+# read-only system image, and neither setup nor remove ever replaces or deletes
+# a file it didn't create: if a different file is already in the way, setup
+# stops without changing anything, and remove leaves that file alone.
 #
 # Origin: this script was written for this repository. The rules file and the
 # udevadm commands below come from OpenLogi's own packaging.
@@ -61,6 +63,21 @@ drop_old_unit() {
   fi
 }
 
+# --- Never touch files this setup didn't make ---------------------------------
+# is_ours_unit: the service file carries our marker line, or it's the throwaway
+# file OpenLogi's agent writes itself (it points into the AppImage's temporary
+# unpack folder, /tmp/.mount_...). Anything else belongs to someone else.
+is_ours_unit() {
+  grep -q 'Written by the OpenLogi AppImage setup' "$1" 2>/dev/null \
+    || grep -q '^ExecStart=.*/tmp/\.mount_' "$1" 2>/dev/null
+}
+
+# same_rules: the rules file in /etc is identical to OpenLogi's own one inside
+# this AppImage (for example from an earlier setup, or from OpenLogi's package).
+same_rules() {
+  cmp -s "$HERE/usr/lib/openlogi/$RULES_NAME" "$RULES_DEST"
+}
+
 # Run a command with administrator rights. pkexec shows a graphical password
 # prompt; sudo (asks in the terminal) is the fallback if pkexec isn't there.
 as_root() {
@@ -80,8 +97,24 @@ install_all() {
   fi
 
   # --- Step 1: device rules --------------------------------------------------
+  # Refuse to replace a different file someone else put there.
+  if [ -e "$RULES_DEST" ] && ! same_rules; then
+    echo "Stopped: $RULES_DEST already exists and is not OpenLogi's rules file." >&2
+    echo "Nothing was changed. Rename or remove that file yourself, then run setup again." >&2
+    exit 1
+  fi
+  # Same check for the service file, before anything is changed.
+  if [ -e "$UNIT" ] && ! is_ours_unit "$UNIT"; then
+    echo "Stopped: $UNIT already exists and wasn't written by this setup or by OpenLogi." >&2
+    echo "Nothing was changed. Rename or remove that file yourself, then run setup again." >&2
+    exit 1
+  fi
+
   echo "1/2  Installing device rules to $RULES_DEST (you may be asked for your password)"
 
+  if same_rules; then
+    echo "     Already in place, nothing to do."
+  else
   # The administrator account can't look inside the AppImage's temporary
   # folder (it belongs to your user only), so first copy the rules file to a
   # normal temporary file that it can read.
@@ -104,6 +137,7 @@ install_all() {
     && (udevadm trigger --subsystem-match=misc --attr-match=name=uinput || true) \
     && (udevadm settle || true)"
   rm -f "$tmp"
+  fi
 
   # --- Step 2: autostart service --------------------------------------------
   echo "2/2  Starting the OpenLogi agent on login (from $APPIMAGE)"
@@ -153,13 +187,21 @@ remove_all() {
   echo "1/2  Stopping and removing the agent autostart"
   # Stop the agent and switch off autostart. "|| true" means: if it was
   # already off, that's fine, carry on.
-  systemctl --user disable --now openlogi-agent.service 2>/dev/null || true
-  rm -f "$UNIT"
+  if [ -e "$UNIT" ] && ! is_ours_unit "$UNIT"; then
+    # Not ours: leave the service and its file completely alone.
+    echo "     Skipped: $UNIT wasn't written by this setup, so it's left alone."
+  else
+    systemctl --user disable --now openlogi-agent.service 2>/dev/null || true
+    rm -f "$UNIT"
+  fi
   drop_old_unit
   systemctl --user daemon-reload || true
 
   # Remove the device rules again, if they're there (needs your password).
-  if [ -e "$RULES_DEST" ]; then
+  # Only remove the rules file if it's exactly OpenLogi's own one.
+  if [ -e "$RULES_DEST" ] && ! same_rules; then
+    echo "2/2  Skipped: $RULES_DEST is not OpenLogi's rules file, so it's left alone."
+  elif [ -e "$RULES_DEST" ]; then
     echo "2/2  Removing $RULES_DEST (you may be asked for your password)"
     as_root sh -c "rm -f '$RULES_DEST' && udevadm control --reload-rules && udevadm trigger --subsystem-match=hidraw"
   fi

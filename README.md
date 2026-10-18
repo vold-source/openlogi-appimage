@@ -34,6 +34,8 @@ x86_64 only.
 
 Neither one layers packages or changes the read-only system image. `~/Applications/OpenLogi remove` undoes both.
 
+Setup and remove never replace or delete a file they didn't create. If a different file is already at one of those places, setup stops without changing anything and tells you which file it is, and remove leaves it alone.
+
 Run `setup` again if you move or rename the AppImage. Updates keep the same path, so they need nothing.
 
 ## Updates
