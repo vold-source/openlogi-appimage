@@ -3,6 +3,8 @@
 [![Latest release](https://img.shields.io/github/v/release/vold-source/openlogi-appimage?label=AppImage)](https://github.com/vold-source/openlogi-appimage/releases/latest)
 [![Build](https://github.com/vold-source/openlogi-appimage/actions/workflows/build.yml/badge.svg)](https://github.com/vold-source/openlogi-appimage/actions/workflows/build.yml)
 
+> **Personal project.** I made this for my own use and share it as is. I don't offer support or take feature requests, but you're welcome to use it or fork it.
+
 Unofficial AppImage of [OpenLogi](https://github.com/AprilNEA/OpenLogi), the open-source alternative to Logitech Options+.
 
 - **Unchanged:** the program files come straight from each official OpenLogi release. Nothing is recompiled or patched.
