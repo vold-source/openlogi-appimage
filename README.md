@@ -32,13 +32,25 @@ x86_64 only.
 ### What setup does
 
 - Copies OpenLogi's device rules to `/etc/udev/rules.d/70-openlogi.rules`, so OpenLogi can talk to your receiver and read and remap mouse buttons. It asks for your password once.
-- Adds an autostart service in `~/.local/share/systemd/user/`, so OpenLogi's background agent runs whenever you log in.
+- Adds an autostart service in `~/.local/share/systemd/user/`, so OpenLogi's background agent runs whenever you log in. It also starts the agent right away (restarting it if it was already running).
+- Keeps a copy of the rules file it installed in `~/.local/share/openlogi-appimage/`, so it still recognises that file as its own after an update.
+- If you used the very first version of this setup, it deletes the autostart file that version left in `~/.config/systemd/user/`.
 
-Neither one layers packages or changes the read-only system image. `~/Applications/OpenLogi remove` undoes both.
+None of this layers packages or changes the read-only system image. `~/Applications/OpenLogi remove` undoes all of it.
 
 Setup and remove never replace or delete a file they didn't create. If a different file is already at one of those places, setup stops without changing anything and tells you which file it is, and remove leaves it alone.
 
-Run `setup` again if you move or rename the AppImage. Updates keep the same path, so they need nothing.
+Run `setup` again if you move or rename the AppImage. Updates keep the same path, so they need nothing. (One exception: if you ran setup with an older AppImage, from before this note was added, run it once more after updating, so it can keep its copy of the rules file.)
+
+## Uninstall
+
+1. If the OpenLogi window is open, quit it (tray icon → Quit).
+2. Run `~/Applications/OpenLogi remove`.
+3. Then uninstall the AppImage (for example in AppManager), **without opening OpenLogi in between**.
+
+The order matters. AppManager can't run `remove` for you, and OpenLogi has its own **Settings → General → Launch at login** switch, which is on by default. Whenever OpenLogi runs, it sets up autostart again by itself, and after a reboot that leftover entry fails quietly in the background.
+
+To keep OpenLogi installed but stop it starting at login, just turn off **Launch at login** in OpenLogi.
 
 ## Updates
 
@@ -76,7 +88,8 @@ Versions match OpenLogi's (e.g. `0.8.14`). A fourth number (e.g. `0.8.14.1`) mea
 | [`build.sh`](build.sh) | Downloads OpenLogi's official `.deb`, unpacks it, adds the two scripts below, and packs it all into an AppImage with [appimagetool](https://github.com/AppImage/appimagetool). | Written for this repo |
 | [`appimage/AppRun`](appimage/AppRun) | The AppImage's front door: decides whether to open the window, run the agent, run the command-line tool, or run setup/remove. | Written for this repo |
 | [`appimage/openlogi-appimage-setup`](appimage/openlogi-appimage-setup) | The one-time `setup` and `remove`. | Written for this repo; the rules file and `udevadm` commands are OpenLogi's own, and the service mirrors OpenLogi's |
-| [`.github/workflows/build.yml`](.github/workflows/build.yml) | Runs daily on GitHub, builds new OpenLogi versions and publishes them as Releases. | Written for this repo |
+| [`tests/test-setup.sh`](tests/test-setup.sh) | Automatic safety test for `setup` and `remove`. It runs them in a throwaway folder with harmless stand-ins for the password prompt and system tools, so it never touches your system. Run it with `sh tests/test-setup.sh`. | Written for this repo |
+| [`.github/workflows/build.yml`](.github/workflows/build.yml) | Runs daily on GitHub, runs the safety test, builds new OpenLogi versions and publishes them as Releases. | Written for this repo |
 
 Every file is commented in plain language, so you can read it top to bottom.
 
