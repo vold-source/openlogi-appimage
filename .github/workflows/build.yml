@@ -6,7 +6,7 @@
 # own machines. Once a day it:
 #   1. asks OpenLogi's GitHub which version is the newest,
 #   2. stops if this repo already has an AppImage for that version,
-#   3. otherwise runs build.sh to make one,
+#   3. otherwise runs the setup/remove safety test, then build.sh to make one,
 #   4. publishes it as a new Release on this repo (where AppManager finds it),
 #   5. records the version in .github/LATEST_BUILT (see the last step for why).
 #
@@ -95,6 +95,15 @@ jobs:
             echo "rev=$rev"
             echo "release=$release"
           } >> "$GITHUB_OUTPUT"
+
+      # -----------------------------------------------------------------------
+      # Check that setup and remove still behave safely before publishing
+      # anything (see tests/test-setup.sh). If a check fails, nothing is built
+      # or published.
+      # -----------------------------------------------------------------------
+      - name: Test setup and remove
+        if: steps.pick.outputs.skip != 'true'
+        run: sh tests/test-setup.sh
 
       # -----------------------------------------------------------------------
       # Make the AppImage (see build.sh for the details).
